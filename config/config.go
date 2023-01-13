@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	Port        int    `env:"PORT" envDefault:"3000"`
-	DatabaseUrl string `env:"DATABASE_URL" envDefault:"3000"`
+	DatabaseUrl string `env:"DATABASE_URL" envDefault:"questions.db"`
 }
 
 func Parse() Config {

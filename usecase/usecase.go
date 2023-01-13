@@ -1,17 +1,25 @@
 package usecase
 
-import "github.com/togglhire/backend-homework/model"
+import (
+	"log"
 
-type Questions struct{}
+	"github.com/togglhire/backend-homework/domain"
+	"github.com/togglhire/backend-homework/model"
+)
 
-func NewQuestions() Questions {
-	return Questions{}
+type Questions struct {
+	repo domain.QuestionRepository
+}
+
+func NewQuestions(questionRepository domain.QuestionRepository) Questions {
+	return Questions{repo: questionRepository}
 }
 
 func (q Questions) GetAll() []model.Question {
-	// TODO remove and use datasource
-	questions := []model.Question{
-		{Body: "hello", Options: []model.Option{{Body: "bye", Correct: true}}},
+	questions, err := q.repo.GetAll()
+	if err != nil {
+		log.Printf("err getting all questions: %s", err)
+		return []model.Question{}
 	}
 
 	return questions
