@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS options_question_id_idx;

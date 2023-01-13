@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS options_question_id_idx on option(question_id);
