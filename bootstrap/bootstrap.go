@@ -10,6 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/togglhire/backend-homework/config"
 	"github.com/togglhire/backend-homework/infrastructure/server"
+	"github.com/togglhire/backend-homework/usecase"
 
 	"github.com/golang-migrate/migrate/v4"
 
@@ -27,9 +28,16 @@ type Closer interface {
 }
 
 func createServerAndDependencies() (context.Context, *server.Server, []Closer, error) {
+
+	// CONFIG
 	cfg := config.Parse()
+
+	// USECASE
+	questions := usecase.NewQuestions()
+
+	// INFRA
 	db := setupSQLConnection(cfg.DatabaseUrl)
-	ctx, srv := server.NewServer(context.Background(), cfg.Port)
+	ctx, srv := server.NewServer(context.Background(), cfg.Port, questions)
 	return ctx, srv, []Closer{srv, db}, nil
 }
 
