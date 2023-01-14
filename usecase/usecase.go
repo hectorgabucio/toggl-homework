@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/togglhire/backend-homework/domain"
@@ -23,4 +24,20 @@ func (q Questions) GetAll() []domain.Question {
 
 	return questions
 
+}
+
+func (q Questions) Add(question domain.Question) error {
+	err := q.repo.Add(question)
+	if err != nil {
+		return fmt.Errorf("err adding question:%w", err)
+	}
+	return nil
+}
+
+func (q Questions) Update(question domain.Question) error {
+	err := q.repo.Update(question)
+	if err != nil {
+		return fmt.Errorf("err updating question:%w", err)
+	}
+	return nil
 }

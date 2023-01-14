@@ -1,15 +1,18 @@
 package domain
 
 type Question struct {
-	Body    string   `json:"body"`
-	Options []Option `json:"options"`
+	ID      int      `json:"id" validate:"required"`
+	Body    string   `json:"body" validate:"required,min=1,max=255"`
+	Options []Option `json:"options" validate:"required,min=1,max=10,dive"`
 }
 
 type Option struct {
-	Body    string `json:"body"`
+	Body    string `json:"body" validate:"required,min=1,max=255"`
 	Correct bool   `json:"correct"`
 }
 
 type QuestionRepository interface {
 	GetAll() ([]Question, error)
+	Add(Question) error
+	Update(Question) error
 }

@@ -10,7 +10,10 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/togglhire/backend-homework/domain"
 	"github.com/togglhire/backend-homework/usecase"
+
+	"github.com/go-playground/validator/v10"
 )
 
 const SRV_SHUTDOWN_TIMEOUT = 10
@@ -36,7 +39,7 @@ func (s *Server) Run(ctx context.Context) error {
 	log.Println("HTTP server starting on port", s.port)
 
 	http.HandleFunc("/status", s.handleStatus)
-	http.HandleFunc("/questions", s.handleListQuestions)
+	http.HandleFunc("/questions", s.handleQuestions)
 
 	go func() {
 		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -59,17 +62,98 @@ func (s Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s Server) handleListQuestions(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+func (s Server) handleQuestions(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.listQuestions(w, r)
+	case http.MethodPost:
+		s.addQuestion(w, r)
+	case http.MethodPut:
+		s.updateQuestion(w, r)
+	default:
 		http.Error(w, "invalid http method", http.StatusMethodNotAllowed)
-		return
 	}
+}
+
+func (s Server) listQuestions(w http.ResponseWriter, r *http.Request) {
 
 	questions := s.questions.GetAll()
 
 	w.Header().Add("Content-Type", "application/json")
 
 	json.NewEncoder(w).Encode(questions)
+}
+
+func (s Server) addQuestion(w http.ResponseWriter, r *http.Request) {
+
+	var question domain.Question
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", http.StatusBadRequest)
+		return
+	}
+
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Incorrect media type", http.StatusUnsupportedMediaType)
+		return
+	}
+	err := json.NewDecoder(r.Body).Decode(&question)
+	if err != nil {
+		http.Error(w, "failed to decode json body", http.StatusBadRequest)
+		return
+	}
+
+	validator := validator.New()
+	if err := validator.Struct(question); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = s.questions.Add(question)
+	if err != nil {
+		log.Println("Internal error adding question", err)
+		http.Error(w, "Internal error adding question", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(question)
+}
+
+func (s Server) updateQuestion(w http.ResponseWriter, r *http.Request) {
+
+	var question domain.Question
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", http.StatusBadRequest)
+		return
+	}
+
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Incorrect media type", http.StatusUnsupportedMediaType)
+		return
+	}
+	err := json.NewDecoder(r.Body).Decode(&question)
+	if err != nil {
+		http.Error(w, "failed to decode json body", http.StatusBadRequest)
+		return
+	}
+
+	validator := validator.New()
+	if err := validator.Struct(question); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = s.questions.Update(question)
+	if err != nil {
+		log.Println("Internal error updating question", err)
+		http.Error(w, "Internal error updating question", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(question)
 }
 
 func serverContext(ctx context.Context) context.Context {
