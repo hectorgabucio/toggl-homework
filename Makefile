@@ -9,7 +9,7 @@ check-style:
 ## Builds project
 .PHONY: build
 build:
-	go build .
+	go build cmd/main.go
 
 ## Runs tests
 .PHONY: test
