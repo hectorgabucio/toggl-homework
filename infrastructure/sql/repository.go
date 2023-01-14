@@ -101,7 +101,7 @@ func (r Repository) Update(question domain.Question) error {
 	err = row.Scan(&exist)
 	if err != nil {
 		_ = tx.Rollback()
-		return fmt.Errorf("err checking if question exists scanning:%w", err)
+		return domain.ErrNoQuestionFound
 	}
 	if exist != 1 {
 		_ = tx.Rollback()

@@ -1,5 +1,11 @@
 package domain
 
+import (
+	"fmt"
+)
+
+var ErrNoQuestionFound = fmt.Errorf("not found question")
+
 type Question struct {
 	ID      int      `json:"id" validate:"required"`
 	Body    string   `json:"body" validate:"required,min=1,max=255"`

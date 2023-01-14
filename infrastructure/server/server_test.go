@@ -145,3 +145,57 @@ func TestServer_addQuestion(t *testing.T) {
 		})
 	}
 }
+
+func TestServer_updateQuestion(t *testing.T) {
+	db := sql.SetupSQLConnection("test.db")
+	defer os.Remove("test.db")
+	repo := sql.NewRepo(db)
+	_, srv := NewServer(context.Background(), 0, usecase.NewQuestions(repo))
+
+	emptyOptQuestion := domain.Question{ID: 1, Body: "hello", Options: []domain.Option{}}
+	validQuestionNonExistent := domain.Question{ID: 1, Body: "hello",
+		Options: []domain.Option{
+			{Body: "option a"}, {Body: "option b", Correct: true},
+		}}
+
+	validQuestionExistent := domain.Question{ID: 2, Body: "hello",
+		Options: []domain.Option{
+			{Body: "option a"}, {Body: "option b", Correct: true},
+		}}
+	repo.Add(validQuestionExistent)
+
+	type args struct {
+		r *http.Request
+	}
+	tests := []struct {
+		name           string
+		args           args
+		expectedStatus int
+	}{
+		{name: "NON body request should fail with 400",
+			args:           args{r: httptest.NewRequest(http.MethodPut, "/questions", nil)},
+			expectedStatus: http.StatusBadRequest},
+		{name: "invalid json request should fail with 400",
+			args: args{r: httptest.NewRequest(http.MethodPost, "/questions",
+				buildBufJson(emptyOptQuestion, t))},
+			expectedStatus: http.StatusBadRequest},
+		{name: "valid question but not existent should throw 404",
+			args: args{r: httptest.NewRequest(http.MethodPost, "/questions",
+				buildBufJson(validQuestionNonExistent, t))},
+			expectedStatus: http.StatusNotFound},
+		{name: "valid question existent should give 200",
+			args: args{r: httptest.NewRequest(http.MethodPost, "/questions",
+				buildBufJson(validQuestionExistent, t))},
+			expectedStatus: http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			tt.args.r.Header.Add("Content-Type", "application/json")
+			srv.updateQuestion(rr, tt.args.r)
+			if rr.Result().StatusCode != tt.expectedStatus {
+				t.Errorf("Status code returned, %d, did not match expected code %d", rr.Result().StatusCode, tt.expectedStatus)
+			}
+		})
+	}
+}

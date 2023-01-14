@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -145,6 +146,12 @@ func (s Server) updateQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = s.questions.Update(question)
+
+	if errors.Is(err, domain.ErrNoQuestionFound) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	if err != nil {
 		log.Println("Internal error updating question", err)
 		http.Error(w, "Internal error updating question", http.StatusInternalServerError)
