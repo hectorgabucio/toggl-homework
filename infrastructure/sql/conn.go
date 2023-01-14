@@ -1,31 +1,46 @@
 package sql
 
 import (
-	"database/sql"
 	"embed"
 	"errors"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/httpfs"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	// side effect to load sqlite3 driver
 	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/jmoiron/sqlx"
 )
 
 //go:embed migrations
 var migrations embed.FS
 
-func SetupSQLConnection(databaseURL string) *sqlx.DB {
-	driverName := "sqlite3"
-	db, err := sql.Open(driverName, databaseURL)
+func SetupSQLConnection(databaseURL string) *gorm.DB {
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			LogLevel: logger.Silent, // Log level
+		},
+	)
+	g, err := gorm.Open(sqlite.Open(databaseURL), &gorm.Config{Logger: newLogger})
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
+
+	db, err := g.DB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_ = g.Callback().Create().Remove("gorm:update_time_stamp")
+	_ = g.Callback().Update().Remove("gorm:update_time_stamp")
+	_ = g.Callback().Delete().Remove("gorm:update_time_stamp")
 
 	driver, err := sqlite3.WithInstance(db, &sqlite3.Config{})
 	if err != nil {
@@ -49,9 +64,8 @@ func SetupSQLConnection(databaseURL string) *sqlx.DB {
 	}
 	log.Println("sql: all migrations run successfully")
 
-	dbSQLX := sqlx.NewDb(db, driverName)
-	if err := dbSQLX.Ping(); err != nil {
+	if err := db.Ping(); err != nil {
 		log.Fatalln("err pinging conn", err)
 	}
-	return dbSQLX
+	return g
 }

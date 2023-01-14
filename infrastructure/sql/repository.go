@@ -3,12 +3,16 @@ package sql
 import (
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/togglhire/backend-homework/domain"
+	"gorm.io/gorm"
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db *gorm.DB
+}
+
+type Tabler interface {
+	TableName() string
 }
 
 type Option struct {
@@ -18,66 +22,53 @@ type Option struct {
 	QuestionID int    `db:"question_id"`
 }
 
+func (Option) TableName() string {
+	return "option"
+}
+
 type Question struct {
 	ID      int    `db:"id"`
 	Body    string `db:"body"`
 	Options []Option
 }
 
-func NewRepo(db *sqlx.DB) Repository {
+func (Question) TableName() string {
+	return "question"
+}
+
+func NewRepo(db *gorm.DB) Repository {
 	return Repository{db: db}
 }
 
 func (r Repository) GetAll() ([]domain.Question, error) {
 	var rows []Question
-	query := `select q.* from question q order by q.id desc;`
-	if err := r.db.Select(&rows, query); err != nil {
+
+	err := r.db.Model(&Question{}).Preload("Options").Order("id desc").Find(&rows).Error
+
+	if err != nil {
 		return nil, fmt.Errorf("err query get all questions:%w", err)
 	}
 
-	// TODO sqlx doesnt support good inner join binding...
-
-	for i := range rows {
-		err := r.db.Select(&rows[i].Options, "SELECT option.id, option.body, option.correct FROM option WHERE question_id = ? order by option.id asc;", rows[i].ID)
-		if err != nil {
-			return nil, fmt.Errorf("err query get options of questions:%w", err)
-		}
+	questions := make([]domain.Question, 0)
+	for _, row := range rows {
+		questions = append(questions, convertToDomain(row))
 	}
 
-	models := make([]domain.Question, len(rows))
-	for i, row := range rows {
-		models[i] = convertToDomain(row)
-	}
-	return models, nil
+	return questions, nil
 }
 
 func (r Repository) Add(question domain.Question) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return fmt.Errorf("err opening trx for adding question:%w", err)
-	}
+	tx := r.db.Begin()
 
-	_, err = tx.Exec("INSERT INTO question (id, body) VALUES (?, ?)", question.ID, question.Body)
-	if err != nil {
-		_ = tx.Rollback()
+	dbQuestion := convertToDBModel(question)
+
+	if err := tx.Create(&dbQuestion).Error; err != nil {
+		tx.Rollback()
 		return fmt.Errorf("err sql exec adding question:%w", err)
 	}
 
-	var optionsToAdd []Option
-	for _, opt := range question.Options {
-		optionsToAdd = append(optionsToAdd, Option{Body: opt.Body, Correct: opt.Correct, QuestionID: question.ID})
-	}
-
-	_, err = tx.NamedExec(`INSERT INTO option (body, correct, question_id)
-	VALUES (:body, :correct,:question_id)`, optionsToAdd)
-	if err != nil {
-		_ = tx.Rollback()
-		return fmt.Errorf("err sql exec adding options:%w", err)
-
-	}
-
-	err = tx.Commit()
-	if err != nil {
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("err commit trx add question:%w", err)
 	}
@@ -86,54 +77,38 @@ func (r Repository) Add(question domain.Question) error {
 }
 
 func (r Repository) Update(question domain.Question) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return fmt.Errorf("err opening trx for adding question:%w", err)
-	}
 
-	row := tx.QueryRow("select 1 from question where question.id = ?", question.ID)
-	err = row.Err()
-	if err != nil {
-		_ = tx.Rollback()
-		return fmt.Errorf("err checking if question exists:%w", err)
-	}
-	var exist int
-	err = row.Scan(&exist)
-	if err != nil {
+	tx := r.db.Begin()
+
+	dbQuestion := convertToDBModel(question)
+
+	var dbQuestionExists Question
+	tx.First(&dbQuestionExists, question.ID)
+	if dbQuestionExists.ID != question.ID {
 		_ = tx.Rollback()
 		return domain.ErrNoQuestionFound
 	}
-	if exist != 1 {
-		_ = tx.Rollback()
-		return fmt.Errorf("err question with that id doesnt exist:%w", err)
-	}
 
-	_, err = tx.NamedExec(`UPDATE question SET body=:body WHERE id = :id`, question)
+	err := tx.Model(&dbQuestion).Updates(dbQuestion).Error
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("err sql exec updating question:%w", err)
 	}
 
-	_, err = tx.Exec(`DELETE FROM option where question_id = ?`, question.ID)
+	err = tx.Exec(`DELETE FROM option where question_id = ?`, question.ID).Error
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("err sql exec deleting option before creating:%w", err)
 	}
 
-	var optionsToAdd []Option
-	for _, opt := range question.Options {
-		optionsToAdd = append(optionsToAdd, Option{Body: opt.Body, Correct: opt.Correct, QuestionID: question.ID})
-	}
-
-	_, err = tx.NamedExec(`INSERT INTO option (body, correct, question_id)
-		VALUES (:body, :correct,:question_id)`, optionsToAdd)
+	err = tx.Create(dbQuestion.Options).Error
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("err sql exec adding options on update:%w", err)
 
 	}
 
-	err = tx.Commit()
+	err = tx.Commit().Error
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("err commit trx update question:%w", err)
@@ -142,14 +117,27 @@ func (r Repository) Update(question domain.Question) error {
 	return nil
 }
 
-func convertToDomain(modelVoice Question) domain.Question {
+func convertToDomain(question Question) domain.Question {
 	options := make([]domain.Option, 0)
-	for _, opt := range modelVoice.Options {
+	for _, opt := range question.Options {
 		options = append(options, domain.Option{Body: opt.Body, Correct: opt.Correct})
 	}
 	return domain.Question{
-		ID:      modelVoice.ID,
-		Body:    modelVoice.Body,
+		ID:      question.ID,
+		Body:    question.Body,
 		Options: options,
+	}
+}
+func convertToDBModel(question domain.Question) Question {
+	dbOptions := make([]Option, 0)
+
+	for _, opt := range question.Options {
+		dbOptions = append(dbOptions, Option{Body: opt.Body, Correct: opt.Correct})
+	}
+
+	return Question{
+		ID:      question.ID,
+		Body:    question.Body,
+		Options: dbOptions,
 	}
 }
