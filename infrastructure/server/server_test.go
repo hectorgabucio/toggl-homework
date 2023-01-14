@@ -110,6 +110,16 @@ func TestServer_addQuestion(t *testing.T) {
 			{Body: "option a"}, {Body: "option b", Correct: true},
 		}}
 
+	questionWithNoCorrectAnswer := domain.Question{ID: 10, Body: "meaning of life",
+		Options: []domain.Option{
+			{Body: "option a"}, {Body: "option b"},
+		}}
+
+	questionWithOnlyOneAnswer := domain.Question{ID: 11, Body: "meaning of life",
+		Options: []domain.Option{
+			{Body: "option a", Correct: true},
+		}}
+
 	type args struct {
 		r *http.Request
 	}
@@ -133,6 +143,14 @@ func TestServer_addQuestion(t *testing.T) {
 			args: args{r: httptest.NewRequest(http.MethodPost, "/questions",
 				buildBufJson(validQuestion, t))},
 			expectedStatus: http.StatusInternalServerError},
+		{name: "create question with no correct answer should fail with 400",
+			args: args{r: httptest.NewRequest(http.MethodPost, "/questions",
+				buildBufJson(questionWithNoCorrectAnswer, t))},
+			expectedStatus: http.StatusBadRequest},
+		{name: "create question with only one answer should fail with 400",
+			args: args{r: httptest.NewRequest(http.MethodPost, "/questions",
+				buildBufJson(questionWithOnlyOneAnswer, t))},
+			expectedStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

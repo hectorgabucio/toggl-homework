@@ -107,8 +107,7 @@ func (s Server) addQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validator := validator.New()
-	if err := validator.Struct(question); err != nil {
+	if err := validateQuestionInput(question); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -147,8 +146,7 @@ func (s Server) updateQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validator := validator.New()
-	if err := validator.Struct(question); err != nil {
+	if err := validateQuestionInput(question); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -173,6 +171,26 @@ func (s Server) updateQuestion(w http.ResponseWriter, r *http.Request) {
 		log.Println("err encoding json response update question", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+func validateQuestionInput(question domain.Question) error {
+	validator := validator.New()
+	if err := validator.Struct(question); err != nil {
+		return err
+	}
+
+	foundOneAnswer := false
+	for _, opt := range question.Options {
+		if opt.Correct {
+			foundOneAnswer = true
+			break
+		}
+	}
+	if !foundOneAnswer {
+		return fmt.Errorf("err question does not have answer")
+	}
+
+	return nil
 }
 
 func serverContext(ctx context.Context) context.Context {
