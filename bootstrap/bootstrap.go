@@ -27,7 +27,7 @@ func CreateServerAndDependencies(cfg config.Config) (context.Context, *server.Se
 
 	// SERVER
 	ctx, srv := server.NewServer(context.Background(), cfg.Port, questions)
-	return ctx, srv, []Closer{srv, db}, nil
+	return ctx, srv, []Closer{srv}, nil
 }
 
 func Run() error {
