@@ -19,6 +19,8 @@ jobs:
         with:
           go-version: "^1.19.0"
       - run: go version
+      - name: Format
+        run: if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
