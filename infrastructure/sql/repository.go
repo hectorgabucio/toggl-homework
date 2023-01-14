@@ -2,6 +2,7 @@ package sql
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/togglhire/backend-homework/domain"
 	"gorm.io/gorm"
@@ -22,6 +23,14 @@ type Option struct {
 	QuestionID int    `db:"question_id"`
 }
 
+type OrderedOptions []Option
+
+func (a OrderedOptions) Len() int { return len(a) }
+func (a OrderedOptions) Less(i, j int) bool {
+	return a[i].ID < a[j].ID
+}
+func (a OrderedOptions) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
 func (Option) TableName() string {
 	return "option"
 }
@@ -31,6 +40,14 @@ type Question struct {
 	Body    string `db:"body"`
 	Options []Option
 }
+
+type OrderedQuestions []Question
+
+func (a OrderedQuestions) Len() int { return len(a) }
+func (a OrderedQuestions) Less(i, j int) bool {
+	return a[i].ID > a[j].ID
+}
+func (a OrderedQuestions) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func (Question) TableName() string {
 	return "question"
@@ -42,19 +59,13 @@ func NewRepo(db *gorm.DB) Repository {
 
 func (r Repository) GetAll() ([]domain.Question, error) {
 	var rows []Question
-
-	err := r.db.Model(&Question{}).Preload("Options").Order("id desc").Find(&rows).Error
+	err := r.db.Preload("Options").Find(&rows).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("err query get all questions:%w", err)
 	}
 
-	questions := make([]domain.Question, 0)
-	for _, row := range rows {
-		questions = append(questions, convertToDomain(row))
-	}
-
-	return questions, nil
+	return convertToDomain(rows), nil
 }
 
 func (r Repository) Add(question domain.Question) error {
@@ -117,16 +128,31 @@ func (r Repository) Update(question domain.Question) error {
 	return nil
 }
 
-func convertToDomain(question Question) domain.Question {
-	options := make([]domain.Option, 0)
-	for _, opt := range question.Options {
-		options = append(options, domain.Option{Body: opt.Body, Correct: opt.Correct})
+func convertToDomain(questions []Question) []domain.Question {
+
+	var orderQuestions OrderedQuestions = questions
+	sort.Sort(orderQuestions)
+	domainQuestions := make([]domain.Question, 0)
+
+	for _, question := range orderQuestions {
+		options := make([]domain.Option, 0)
+
+		var orderOpt OrderedOptions = question.Options
+		sort.Sort(orderOpt)
+		for _, opt := range orderOpt {
+			options = append(options, domain.Option{Body: opt.Body, Correct: opt.Correct})
+		}
+
+		domainQuestion := domain.Question{
+			ID:      question.ID,
+			Body:    question.Body,
+			Options: options,
+		}
+		domainQuestions = append(domainQuestions, domainQuestion)
 	}
-	return domain.Question{
-		ID:      question.ID,
-		Body:    question.Body,
-		Options: options,
-	}
+
+	return domainQuestions
+
 }
 func convertToDBModel(question domain.Question) Question {
 	dbOptions := make([]Option, 0)
