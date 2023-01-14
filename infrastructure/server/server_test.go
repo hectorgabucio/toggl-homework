@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/togglhire/backend-homework/domain"
 	"github.com/togglhire/backend-homework/infrastructure/sql"
 	"github.com/togglhire/backend-homework/usecase"
 )
@@ -34,4 +37,52 @@ func TestServer_handleStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServer_ListQuestionsOrderShouldBeStable(t *testing.T) {
+	db := sql.SetupSQLConnection("test.db")
+	repo := sql.NewRepo(db)
+
+	repo.Add(domain.Question{ID: 1, Body: "one", Options: []domain.Option{
+		{Body: "option one", Correct: false},
+	}})
+
+	repo.Add(domain.Question{ID: 3, Body: "three", Options: []domain.Option{
+		{Body: "option one for question 3", Correct: false},
+	}})
+
+	repo.Add(domain.Question{ID: 2, Body: "two", Options: []domain.Option{
+		{Body: "option one for question 2", Correct: false},
+	}})
+
+	_, srv := NewServer(context.Background(), 0, usecase.NewQuestions(repo))
+	rr := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/questions", nil)
+	srv.listQuestions(rr, r)
+	if rr.Result().StatusCode != http.StatusOK {
+		t.Errorf("Status code returned, %d, did not match expected code %d", rr.Result().StatusCode, http.StatusOK)
+	}
+
+	var response []domain.Question
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Errorf("json response should be unmarshable")
+	}
+	expected := `[{"id":3,"body":"three","options":[{"body":"option one for question 3","correct":false}]},{"id":2,"body":"two","options":[{"body":"option one for question 2","correct":false}]},{"id":1,"body":"one","options":[{"body":"option one","correct":false}]}]`
+	got := strings.TrimSpace(rr.Body.String())
+	eq := strings.Compare(got, expected)
+
+	if eq != 0 {
+		t.Errorf("json returned, %s, did not match expected json %s", got, expected)
+	}
+
+	rr = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodGet, "/questions", nil)
+	srv.listQuestions(rr, r)
+	got = strings.TrimSpace(rr.Body.String())
+	eq = strings.Compare(got, expected)
+
+	if eq != 0 {
+		t.Errorf("json returned, %s, did not match expected json %s", got, expected)
+	}
+
 }
