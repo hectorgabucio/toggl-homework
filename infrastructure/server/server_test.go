@@ -55,15 +55,15 @@ func TestServer_ListQuestionsOrderShouldBeStable(t *testing.T) {
 	defer os.Remove("test.db")
 	repo := sql.NewRepo(db)
 
-	repo.Add(domain.Question{ID: 1, Body: "one", Options: []domain.Option{
+	_ = repo.Add(domain.Question{ID: 1, Body: "one", Options: []domain.Option{
 		{Body: "option one", Correct: false},
 	}})
 
-	repo.Add(domain.Question{ID: 3, Body: "three", Options: []domain.Option{
+	_ = repo.Add(domain.Question{ID: 3, Body: "three", Options: []domain.Option{
 		{Body: "option one for question 3", Correct: false},
 	}})
 
-	repo.Add(domain.Question{ID: 2, Body: "two", Options: []domain.Option{
+	_ = repo.Add(domain.Question{ID: 2, Body: "two", Options: []domain.Option{
 		{Body: "option one for question 2", Correct: false},
 	}})
 
@@ -162,7 +162,7 @@ func TestServer_updateQuestion(t *testing.T) {
 		Options: []domain.Option{
 			{Body: "option a"}, {Body: "option b", Correct: true},
 		}}
-	repo.Add(validQuestionExistent)
+	_ = repo.Add(validQuestionExistent)
 
 	type args struct {
 		r *http.Request

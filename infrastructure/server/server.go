@@ -82,7 +82,11 @@ func (s Server) listQuestions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(questions)
+	err := json.NewEncoder(w).Encode(questions)
+	if err != nil {
+		log.Println("err encoding json response list questions", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func (s Server) addQuestion(w http.ResponseWriter, r *http.Request) {
@@ -118,7 +122,11 @@ func (s Server) addQuestion(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(question)
+	err = json.NewEncoder(w).Encode(question)
+	if err != nil {
+		log.Println("err encoding json response add question", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func (s Server) updateQuestion(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +168,11 @@ func (s Server) updateQuestion(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(question)
+	err = json.NewEncoder(w).Encode(question)
+	if err != nil {
+		log.Println("err encoding json response update question", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func serverContext(ctx context.Context) context.Context {
